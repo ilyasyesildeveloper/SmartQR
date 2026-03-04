@@ -1,0 +1,54 @@
+# MASTER PROMPT: Akıllı QR / Smart QR - Evrensel Ürün Yönetim Sistemi (v2.1.0)
+
+Bu doküman, "Smart QR" uygulamasının tüm teknik mimarisini, işleyiş mantığını ve tasarım detaylarını içermektedir. Bu metni bir AI aracına (Windsurf, Cursor, ChatGPT vb.) vererek uygulamanın başka platformlara (iOS, Web, Flutter vb.) taşınmasını veya mevcut yapının geliştirilmesini sağlayabilirsiniz.
+
+---
+
+## 1. UYGULAMA AMACI VE VİZYONU
+Smart QR, herhangi bir sektördeki QR/Barkod etiketli ürünlerin (halı, mobilya, otomotiv parçası vb.) karmaşık teknik detaylarını anında görüntülemek için tasarlanmış hibrit bir envanter takip sistemidir. Statik bir katalog yerine, bulut tabanlı ve dinamik olarak değişebilen bir veri yapısı sunar.
+
+## 2. TEKNİK MİMARİ (Android/Kotlin Stack)
+- **Mimari Desen:** MVVM (Model-View-ViewModel).
+- **Yerel Veritabanı:** Room Persistence Library (Offline-First yaklaşımı).
+- **Bulut Veritabanı:** Firebase Cloud Firestore (`items` koleksiyonu).
+- **Kimlik Doğrulama:** Firebase Auth (Anonim Giriş - Senkronizasyon güvenliği için).
+- **Görsel Yönetimi:** Coil (Akıllı önbellekleme ve asenkron yükleme).
+- **Bağımlılık Enjeksiyonu / Yönetimi:** Lazy Initialization ve Singleton Pattern (`AppDatabase`).
+
+## 3. FONKSİYONEL AYRINTILAR
+
+### A. Akıllı QR Tarama ve Görüntü İşleme (QrScanActivity)
+- **Motor:** Google ML Kit Barcode Scanning.
+- **Kararlılık Algoritması (Dwell Time):** Hatalı veya anlık okumaları önlemek için QR kodunun 1.2 saniye boyunca kadrajda ve odakta kalması gerekir.
+- **Yakınlık Takibi:** Ekrandaki birden fazla kod arasından ekranın merkezine (Öklid mesafesi ile) en yakın olanı otomatik seçer.
+- **Dinamik Fener:** Kamera görüntüsü üzerinde, kullanıcının elini kaydırmadan ulaşabileceği merkezi bir fener butonu.
+- **Hata Toleransı (Grace Period):** El titremesi nedeniyle kodun anlık kaybolması durumunda tarama sayacı hemen sıfırlanmaz, 150ms tolerans tanınır.
+
+### B. Evrensel Veri Senkronizasyon Mantığı (SyncHelper & CsvImport)
+- **Dinamik Eşleştirme:** CSV sütun başlıkları (`id`, `name`, `qrText`, `imageUrl` hariç) veritabanına birer "Property" olarak JSON formatında (`propertiesJson`) kaydedilir.
+- **Firestore Batch Commit:** CSV'den Firestore'a veri aktarırken 500'lük paketler (Batches) kullanılarak işlem hızı optimize edilir.
+- **Otomatik Sync:** Uygulama açılışında veritabanı boşsa veya son güncelleme üzerinden 30 gün geçtiyse arka planda Firestore üzerinden listeyi yeniler.
+
+### C. UI/UX ve AESTHETICS (MainActivity)
+- **İnteraktif Görsel:+** Görsel alanında Pinch-to-Zoom (çimdik), Double-Tap (çift dokunuş) ve Pan (sürükleme) hareketleri desteklenir.
+- **Sıçrama (Bounce) Animasyonu:** Ürün detayları butonuna (FAB) görsel yüklendiğinde kullanıcıyı yönlendiren mikro-animasyon.
+- **Bottom Sheet Detay Paneli:** Ürünün teknik verileri (Renk, Seri, Stok, Desen vb.) ana ekranı kalabalıklaştırmamak için aşağıdan açılan şık bir modal içinde listelenir.
+- **Çoklu Dil (Internationalization):** `strings.xml` üzerinden tam TR/EN desteği. Dil değişince veritabanı başlıkları da dinamik olarak yerelleşir.
+
+## 4. TEKNİK DETAYLAR & FORMATLAMA
+- **Sayısal Düzenleme:** `#`, `Series`, `Pattern`, `Model` gibi alanlardaki sayısal değerler her zaman en az iki haneli (örn: 1 yerine 01) olacak şekilde `String.format("%02d", it)` ile düzenlenir.
+- **JSON Esnekliği:** Ürün özellikleri veritabanında sütun olarak değil, tek bir metin alanında JSON olarak tutulur. Bu, veritabanı şemasını değiştirmeden yeni özellikler eklenmesini sağlar.
+
+## 5. TASARIM ÖZELLİKLERİ
+- **Renk Paleti:** Burgundy (Burgonya) ana tema rengi, açık gri (`#F8F4F4`) yumuşak kart arkalıkları.
+- **Tipografi:** Okunabilirliği yüksek, modern sans-serif yazı tipleri.
+- **İkonografi:** Material Design ikonları ve özel tasarım Smart QR logoları.
+
+## 6. CROSS-PLATFORM HEDEFLERİ (AI İÇİN NOT)
+Bu uygulamanın diğer platformlara (Web, iOS, Desktop) taşınması durumunda:
+1.  **Firebase Firestore** yapısı aynı kalmalı (`items` koleksiyonu).
+2.  **JSON Properties** mantığı korunarak arayüzde dinamik tablolar oluşturulmalı.
+3.  **QR Tarama** kütüphanesi olarak platforma uygun (örn: iOS için Vision Framework, Flutter için mobile_scanner) benzer Dwell Time mantığı uygulanmalı.
+
+---
+Bu projenin temel felsefesi: **"Esnek Veri, Sabit Performans"** ilkesidir.

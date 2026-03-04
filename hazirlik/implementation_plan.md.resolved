@@ -1,0 +1,57 @@
+# implementation_plan.md
+
+# SmartQR Flutter App Implementation Plan
+
+This plan outlines the migration and development of the SmartQR application from Kotlin/Android to a cross-platform Flutter application.
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Employee Focused**: The UI will be optimized for employees to identify products quickly.
+> - **Universal Data**: The app will parse `;` separated CSV files (like [carpets_roll_test.csv](file:///c:/yesileee/SmartQR/hazirlik/carpets_roll_test.csv)) to populate product database.
+> - **Image-First UI**: The product image will take up the majority of the screen space.
+> - **Manual Entry**: A search bar or manual entry field will be added for identify products by name.
+> - **Simplified Details**: Technical properties will be accessible via a corner button, removing e-commerce/buy elements.
+
+## Proposed Changes
+
+### Core Architecture
+- **Framework:** Flutter (Latest Stable)
+- **State Management:** Provider or Riverpod
+- **Database:** Isar (Local) + Firebase Firestore (Cloud)
+- **Auth:** Firebase Anonymous Auth
+- **QR Engine:** `mobile_scanner` or `google_mlkit_barcode_scanning`
+
+---
+
+### UI Components
+
+#### [NEW] [main_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/main_screen.dart)
+Prioritizes the product image. Includes a manual search bar at the top and a corner button to toggle technical details.
+
+#### [NEW] [qr_scanner_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/qr_scanner_screen.dart)
+Mobile scanner with 1.2s dwell time. Redirects to main screen on success.
+
+#### [NEW] [details_panel.dart](file:///c:/yesileee/SmartQR/lib/widgets/details_panel.dart)
+A toggleable overlay or side panel for displaying dynamic properties from the CSV.
+
+---
+
+### Data Layer
+
+#### [NEW] [product_model.dart](file:///c:/yesileee/SmartQR/lib/models/product_model.dart)
+Flexible product model supporting dynamic properties via Map/JSON.
+
+#### [NEW] [sync_service.dart](file:///c:/yesileee/SmartQR/lib/services/sync_service.dart)
+Firebase Firestore sync logic with batch processing.
+
+## Verification Plan
+
+### Automated Tests
+- Run `flutter test` for unit tests on data models and sync logic.
+- Run `flutter analyze` to ensure code quality.
+
+### Manual Verification
+- Verify QR scanning sensitivity and dwell time on physical devices or emulator (mocking camera if needed).
+- Test CSV import functionality.
+- Verify UI responsiveness across different screen sizes.

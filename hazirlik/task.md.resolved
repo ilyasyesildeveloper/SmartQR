@@ -1,0 +1,20 @@
+# Task: SmartQR Flutter App Development
+
+- [x] Project Cleanup and Preparation
+    - [x] List project directory contents
+    - [x] Delete existing files excluding `hazirlik` folder
+    - [x] Read `Smart QR_AI_Prompt.txt` and other resources in `hazirlik`
+- [x] UI/UX Design Generation
+    - [x] Generate design mockups for main screens
+    - [x] Get user feedback on designs
+- [ ] Flutter Project Setup
+    - [ ] Initialize new Flutter project [ ]
+    - [ ] Configure project structure and dependencies [ ]
+- [ ] Development
+    - [ ] Implement core UI focusing on large product images [/]
+    - [ ] Implement manual product search and QR scanning [ ]
+    - [ ] CSV Data parsing and local storage [ ]
+    - [ ] Detail overlay/panel logic [ ]
+- [ ] Verification
+    - [ ] Test on Android/iOS (simulated/mocked if needed) [ ]
+    - [ ] Final walkthrough [ ]
