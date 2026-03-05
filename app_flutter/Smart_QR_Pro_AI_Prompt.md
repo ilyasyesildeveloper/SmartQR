@@ -1,47 +1,38 @@
-# MASTER PROMPT: Smart QR Pro - Evrensel Ürün Yönetim Sistemi (Flutter v1.0.2)
+# MASTER PROMPT: Smart QR Pro - QR Kod Ürün Yönetim Sistemi (Flutter v1.1.0)
 
 Bu doküman, "Smart QR Pro" Flutter uygulamasının tüm teknik mimarisini, işleyiş mantığını ve tasarım detaylarını içermektedir. Bu metni bir AI aracına vererek uygulamanın geliştirilmesini veya hata düzeltmesini sağlayabilirsiniz.
 
 ---
 
 ## 1. UYGULAMA AMACI VE VİZYONU
-Smart QR Pro, herhangi bir sektördeki QR/Barkod etiketli ürünlerin karmaşık teknik detaylarını anında görüntülemek için tasarlanmış bir **çalışan odaklı** ürün tanımlama sistemidir. Yeni çalışanların ürünleri hızlıca tanıması için optimize edilmiştir.
+Smart QR Pro, herhangi bir sektördeki QR/Barkod etiketli ürünlerin karmaşık teknik detaylarını anında görüntülemek için tasarlanmış bir **çalışan odaklı** ürün tanımlama sistemidir.
 
 **Hedef Kullanıcı:** Şirket çalışanları (özellikle yeni başlayanlar)
 **Kullanım Senaryosu:** QR kodu okutma veya ürün adıyla arama yaparak ürün görseli ve teknik detaylara erişim
 **Veri Akışı:**
 - QR okutma → `qrText` alanı ile eşleşme
-- Manuel arama → `itemName` alanı ile filtreleme
+- Manuel arama → `itemName` alanı ile yerel filtreleme
 - Ürün görseli → `imageUrl` alanındaki URL'den (Cloudinary CDN)
 
 ---
 
-## 2. TEKNİK MİMARİ (Flutter Stack)
+## 2. TEKNİK MİMARİ
 
 ### Temel Yapı
 - **Framework:** Flutter (Stable channel)
 - **Dil:** Dart
 - **Mimari:** Provider Pattern + Offline-First
 - **Platformlar:** Android + iOS
+- **Çift Dil:** TR/EN (AppLocalizations sınıfı)
 
-### Bağımlılıklar
-| Paket | Amaç |
-|-------|------|
-| firebase_core, firebase_auth, cloud_firestore | Firebase altyapı |
-| mobile_scanner ^7.0.2 | QR/Barkod tarama (ML Kit) |
-| cached_network_image | Görsel önbellekleme |
-| csv ^6.0.0 | CSV ayrıştırma (`;` ayırıcı) |
-| provider | State yönetimi |
-| google_fonts | Outfit yazı tipi |
-| shared_preferences | Yerel anahtar-değer (sync zamanı) |
-| path_provider | Yerel JSON dosya depolama |
-| file_picker | CSV dosya seçimi |
+### Firebase Projeleri (İKİ ADET)
 
-### Firebase Yapılandırması
-- **Proje ID:** smartqr-flutterapp
-- **Koleksiyon:** `smartqrflutter`
-- **Auth:** Anonim (okuma) + Email/Password (yazma/admin)
+| Proje | ID | Koleksiyon | Amaç |
+|-------|-----|-----------|------|
+| SmartQR | smartqr-flutterapp | `smartqrflutter` | Ürün verileri (CRUD) |
+| MyData | mydata-81 | `mydata` / `mydata-81` | Geliştirici/Hakkında bilgisi (salt okunur) |
 
+### SmartQR Firebase Rules
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -56,24 +47,53 @@ service cloud.firestore {
 }
 ```
 
+### MyData Firebase Rules
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /mydata/{docId} {
+      allow read: if true;   // Public read (login gerektirmez)
+      allow write: if false; // Console'dan yönetilir
+    }
+  }
+}
+```
+
+### Bağımlılıklar
+| Paket | Amaç |
+|-------|------|
+| firebase_core, firebase_auth, cloud_firestore | Firebase altyapı (iki proje) |
+| mobile_scanner ^7.0.2 | QR/Barkod tarama (ML Kit) |
+| cached_network_image | Görsel önbellekleme |
+| csv ^6.0.0 | CSV ayrıştırma (`;` ayırıcı) |
+| provider | State yönetimi |
+| google_fonts | Outfit yazı tipi |
+| shared_preferences | Dil tercihi + sync zamanı |
+| path_provider | Yerel JSON dosya depolama |
+| file_picker | CSV dosya seçimi |
+
 ---
 
 ## 3. DOSYA YAPISI
 
 ```
 app_flutter/lib/
-├── main.dart                        # Giriş noktası, Firebase init, Provider
-├── firebase_options.dart            # Firebase proje kimlik bilgileri
+├── main.dart                        # Giriş, Firebase init, dil yükleme
+├── firebase_options.dart            # SmartQR Firebase kimlik bilgileri
 ├── theme/app_theme.dart             # Burgundy Light/Dark tema
-├── models/product_model.dart        # Esnek ürün modeli
+├── l10n/app_localizations.dart      # TR/EN çeviri sistemi + property adları
+├── models/product_model.dart        # Ürün modeli (2-digit formatting)
 ├── services/
-│   ├── firebase_service.dart        # Auth + Firestore CRUD + CSV upload
-│   └── local_storage_service.dart   # Offline JSON depolama + sync kontrolü
+│   ├── firebase_service.dart        # Auth + CRUD + CSV upload (BOM-safe)
+│   ├── local_storage_service.dart   # Offline JSON + 30-gün sync
+│   └── mydata_service.dart          # İkinci Firebase (Hakkında bilgisi)
 ├── providers/product_provider.dart  # State yönetimi (offline-first)
 └── screens/
-    ├── home_screen.dart             # Ana ekran (görsel + autocomplete arama)
-    ├── qr_scanner_screen.dart       # QR Tarayıcı (1.2s dwell time)
-    └── settings_screen.dart         # Admin giriş + CSV yükleme
+    ├── home_screen.dart             # Ana ekran (görsel + autocomplete)
+    ├── qr_scanner_screen.dart       # QR Tarayıcı (center-matching)
+    ├── settings_screen.dart         # Admin + CSV + Dil + Hakkında
+    └── about_screen.dart            # Dinamik Hakkında sayfası
 ```
 
 ---
@@ -89,55 +109,65 @@ app_flutter/lib/
 
 **Örnek veriler:**
 ```
-47;HALI-CAPE.TOWN-CPT.02.MULTY;HALI;CAPE.TOWN;CPT 02 MULTY;2;MULTY;;;;;;;;;10;HALI-CAPE.TOWN-CPT.02.MULTY;https://res.cloudinary.com/diktlnwin/image/upload/v1771926470/cape-town-cpt-02-multy-hav-toz-vermez--dcb1c4_ludmcx.jpg
-54;HALI-COZY-CZY.03.GREY.BEIGE;HALI;COZY;CZY 03 GREY BEIGE;3;GREY.BEIGE;;;;;;;;;10;HALI-COZY-CZY.03.GREY.BEIGE;https://res.cloudinary.com/diktlnwin/image/upload/v1771926470/cozy-czy-03-grey-beige-hav-toz-vermez--363236_vamjh0.jpg
-500;HALI-ZEN-ZEN.AMORF.01.BEIGE;HALI;ZEN;ZEN AMORF 01 BEIGE;;BEIGE;1;;;;;;;;10;HALI-ZEN-ZEN.AMORF.01.BEIGE;https://res.cloudinary.com/diktlnwin/image/upload/v1771926470/zen-amorf-01-beige.jpg
+47;HALI-CAPE.TOWN-CPT.02.MULTY;HALI;CAPE.TOWN;CPT 02 MULTY;2;MULTY;;;;;;;;;10;HALI-CAPE.TOWN-CPT.02.MULTY;https://res.cloudinary.com/.../cape-town-cpt-02-multy.jpg
+54;HALI-COZY-CZY.03.GREY.BEIGE;HALI;COZY;CZY 03 GREY BEIGE;3;GREY.BEIGE;;;;;;;;;10;HALI-COZY-CZY.03.GREY.BEIGE;https://res.cloudinary.com/.../cozy-czy-03-grey-beige.jpg
+500;HALI-ZEN-ZEN.AMORF.01.BEIGE;HALI;ZEN;ZEN AMORF 01 BEIGE;;BEIGE;1;;;;;;;;10;HALI-ZEN-ZEN.AMORF.01.BEIGE;https://res.cloudinary.com/.../zen-amorf-01-beige.jpg
 ```
 
 ### Alan Açıklamaları
-| Alan | Açıklama | Kullanım |
-|------|----------|----------|
-| `#` | Sıra numarası | Sadece referans |
-| `id` | **Zorunlu** Benzersiz ürün ID | Firestore document ID |
-| `type` | Ürün türü (HALI, KİLİM vb.) | Detay paneli |
-| `series` | Ürün serisi | Detay paneli |
-| `itemName` | **Ürün adı** | Manuel arama + görsel üstü badge |
-| `pattern` | Desen kodu | Detay paneli |
-| `color` | Renk | Detay paneli |
-| `model` | Model numarası | Detay paneli |
-| `qrText` | **QR kod metni** | QR tarama ile eşleşme |
-| `imageUrl` | **Görsel URL** | Ürün görseli (Cloudinary CDN) |
+| Alan | TR Görünüm | Açıklama |
+|------|-----------|----------|
+| `id` | — | **Zorunlu** Firestore document ID |
+| `type` | TÜR | Ürün türü |
+| `series` | SERİ | Ürün serisi |
+| `itemName` | — | Manuel arama + badge |
+| `pattern` | DESEN | Desen kodu |
+| `color` | RENK | Renk |
+| `model` | MODEL | Model numarası |
+| `qrText` | — | QR tarama eşleşmesi |
+| `imageUrl` | — | Ürün görseli URL |
 
-> Dinamik alanlar: `feature4`, `feature5`, `size1-3`, `number`, `total`, `stock` gibi sabit alanlar dışındaki tüm sütunlar `properties` Map'ine kaydedilir.
+> Sabit alanlar dışındaki tüm CSV sütunları `properties` Map'ine kaydedilir. Tek karakterli sayısal değerler 01, 02 şeklinde gösterilir.
 
 ---
 
 ## 5. FONKSİYONEL AYRINTILAR
 
 ### A. Offline-First Mimari
-1. İlk açılış → Firebase'den tüm ürünler indirilir → JSON olarak cihaza kaydedilir
-2. Sonraki açılışlar → Yerel JSON'dan anında yüklenir
-3. 30 günde bir otomatik Firebase senkronizasyonu
-4. Settings'te manuel "Verileri Güncelle" butonu
+1. İlk açılış → Firebase'den indir → JSON olarak kaydet
+2. Sonraki açılışlar → Yerelden anında yükle
+3. 30 günde bir otomatik senkronizasyon
+4. Settings'te manuel "Verileri Güncelle"
 
-### B. Ana Ekran (home_screen.dart)
-- **Görsel Odaklı:** Ürün görseli ekranın büyük çoğunluğunu kaplar
-- **InteractiveViewer:** Pinch-to-zoom, çift dokunuşla tam ekran
-- **Autocomplete Arama:** Overlay-based açılır liste, BÜYÜK HARF gösterim
-  - Yazdıkça liste daralır, seçim yapınca klavye ve liste kapanır
-  - 150ms debounce, yerel filtreleme (Firebase çağrısı yok)
-- **Detay Paneli:** FAB butonu ile açılır/kapanır özellik listesi
+### B. QR Tarayıcı — Center Matching
+- Birden fazla QR görünüyorsa: her QR'ın bounding box merkez noktası hesaplanır
+- Tarama alanının merkezine en yakın olan seçilir (Öklid mesafesi)
+- **Dwell time:** 1.0 saniye, **Grace period:** 150ms
+- Daire şeklinde ilerleme animasyonu (CustomPainter)
 
-### C. QR Tarayıcı (qr_scanner_screen.dart)
-- **Dwell Time:** QR kodun 1.2 saniye kadrajda kalması gerekir
-- **Grace Period:** 150ms tolerans
-- **İlerleme:** Daire şeklinde CustomPainter çizimi
-- **Fener:** Toggle butonu
+### C. Autocomplete Arama
+- Overlay-based dropdown, BÜYÜK HARF gösterim
+- Yazdıkça yerel filtreleme (Firebase çağrısı yok)
+- Seçince klavye + liste kapanır, 150ms debounce
 
-### D. Ayarlar (settings_screen.dart)
-- **Admin Girişi:** Email/Password (autocorrect kapalı, büyük harf yok)
-- **CSV Yükleme:** UTF-8 BOM temizleme, fallback parser, detaylı hata mesajları
-- **Veri Güncelle:** Firebase'den çek → yerele kaydet, son sync zamanı gösterilir
+### D. Hakkında Sayfası (MyData Firebase)
+- İkinci Firebase projesi (mydata-81) okunur
+- `mydata/mydata-81` dökümanındaki tüm alanlar dinamik gösterilir
+- Boş alanlar gizlenir, yeni alan ekleyince otomatik görünür
+- Firebase Console'dan içerik değiştirilebilir
+
+### E. Çift Dil Desteği (TR/EN)
+- `AppLocalizations` sınıfı ile merkezi çeviri
+- Settings'te SegmentedButton dil seçici
+- SharedPreferences ile kalıcı dil tercihi
+- Dil değişince tüm ekranlar yenilenir
+- Özellik alan adları da çevrili (pattern→DESEN, color→RENK)
+
+### F. CSV Yükleme (BOM-Safe)
+- UTF-8 BOM karakteri karakter bazlı temizleme
+- Case-insensitive header arama
+- Fallback: manual split parser
+- 500'lük batch Firestore yazımı
 
 ---
 
@@ -147,27 +177,27 @@ app_flutter/lib/
 | Renk | Hex | Kullanım |
 |------|-----|----------|
 | Burgundy | #800020 | Primary |
-| Burgundy Light | #A3324D | Dark theme primary |
-| Accent Gold | #D4AF37 | Vurgu, aktif fener, ilerleme |
+| Burgundy Light | #A3324D | Dark theme |
+| Accent Gold | #D4AF37 | Vurgu, aktif fener |
 | Surface Dark | #1A1A2E | Dark mode arka plan |
 
-### Tipografi & Tema
-- **Font:** Google Fonts - Outfit
-- **Material 3** aktif, sistem temasına göre Light/Dark otomatik geçiş
-- **İkon:** smartqr5.png (turuncu kutu, koyu mavi arka plan)
+### Tema
+- **Material 3**, Google Fonts - Outfit
+- Sistem temasına göre otomatik Light/Dark
+- İkon: smartqr5.png (turuncu kutu, koyu mavi arka plan)
 
 ---
 
 ## 7. GELİŞTİRME NOTLARI (AI İÇİN)
-1. `smartqrflutter` Firestore koleksiyonu kullanılır
-2. `mobile_scanner v7` API (torchState → manual state tracking)
-3. Provider pattern (ChangeNotifier) ile state yönetimi
-4. CSV `;` delimiter, UTF-8 BOM temizleme zorunlu
-5. Offline-first: `local_storage_service.dart` ile JSON dosya depolama
-6. Tüm Firebase işlemleri `ProductProvider` → `FirebaseService` zinciri ile yapılır
-7. Arama **yerel** filtreleme kullanır (Firebase çağrısı yapmaz)
-8. Debug APK ~70MB+, release ~15-20MB (normal)
+1. İKİ Firebase projesi kullanılır: SmartQR (ürünler) + MyData (hakkında)
+2. `mobile_scanner v7` API, `corners` property ile center-matching
+3. Provider + ChangeNotifier state yönetimi
+4. CSV `;` delimiter, BOM temizleme zorunlu
+5. Offline-first: `local_storage_service.dart` (JSON)
+6. Arama yerel filtreleme (Firebase çağrısı yapmaz)
+7. i18n: `app_localizations.dart` (TR/EN string + property name çeviri)
+8. Debug APK ~70MB+, release ~15-20MB
 9. iOS build için macOS gereklidir
 
 ---
-Bu projenin temel felsefesi: **"Esnek Veri, Sabit Performans"** ilkesidir.
+Felsefe: **"Esnek Veri, Sabit Performans"**
