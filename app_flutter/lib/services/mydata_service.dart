@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 /// Service to read developer/about info from MyData Firebase project
 class MyDataService {
@@ -14,15 +15,17 @@ class MyDataService {
 
   FirebaseFirestore? _firestore;
   Map<String, dynamic>? _cachedData;
+  String? lastError; // Debug için
 
   /// Initialize the second Firebase app for MyData
   Future<void> initialize() async {
     try {
-      // Check if already initialized
       FirebaseApp myDataApp;
       try {
         myDataApp = Firebase.app('mydata');
+        debugPrint('[MyData] Using existing Firebase app');
       } catch (_) {
+        debugPrint('[MyData] Initializing new Firebase app...');
         myDataApp = await Firebase.initializeApp(
           name: 'mydata',
           options: const FirebaseOptions(
@@ -33,10 +36,14 @@ class MyDataService {
             storageBucket: _storageBucket,
           ),
         );
+        debugPrint('[MyData] Firebase app initialized successfully');
       }
       _firestore = FirebaseFirestore.instanceFor(app: myDataApp);
-    } catch (e) {
-      // Silently fail - about page will show defaults
+      debugPrint('[MyData] Firestore instance ready');
+    } catch (e, stackTrace) {
+      lastError = 'Init error: $e';
+      debugPrint('[MyData] ERROR initializing: $e');
+      debugPrint('[MyData] Stack: $stackTrace');
     }
   }
 
@@ -46,19 +53,30 @@ class MyDataService {
 
     try {
       if (_firestore == null) await initialize();
-      if (_firestore == null) return {};
+      if (_firestore == null) {
+        debugPrint('[MyData] Firestore is null after init');
+        return {};
+      }
 
+      debugPrint('[MyData] Fetching $_collectionName/$_documentId ...');
       final doc = await _firestore!
           .collection(_collectionName)
           .doc(_documentId)
           .get();
 
+      debugPrint('[MyData] Doc exists: ${doc.exists}');
       if (doc.exists && doc.data() != null) {
         _cachedData = doc.data()!;
+        debugPrint('[MyData] Got ${_cachedData!.length} fields: ${_cachedData!.keys.toList()}');
         return _cachedData!;
+      } else {
+        lastError = 'Document does not exist or is empty';
+        debugPrint('[MyData] Document not found');
       }
-    } catch (e) {
-      // Offline or error — return empty
+    } catch (e, stackTrace) {
+      lastError = 'Fetch error: $e';
+      debugPrint('[MyData] ERROR fetching: $e');
+      debugPrint('[MyData] Stack: $stackTrace');
     }
     return {};
   }

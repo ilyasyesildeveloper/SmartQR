@@ -15,7 +15,7 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.unrestricted, // Her frame'de tara (center-matching için şart)
+    detectionSpeed: DetectionSpeed.unrestricted,
     facing: CameraFacing.back,
     torchEnabled: false,
   );
@@ -25,24 +25,26 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Timer? _graceTimer;
   bool _isProcessing = false;
   double _dwellProgress = 0.0;
-  Timer? _progressTimer;
   bool _torchOn = false;
   DateTime? _dwellStartTime;
 
-  static const int dwellMs = 1000; // 1.0 saniye
-  static const Duration gracePeriod = Duration(milliseconds: 400); // El titremesi toleransı
+  static const int dwellMs = 1000;
+  static const Duration gracePeriod = Duration(milliseconds: 400);
+
+  // Tarama alanı sınırları (build sırasında hesaplanır)
+  Rect _scanAreaRect = Rect.zero;
 
   @override
   void dispose() {
     _dwellTimer?.cancel();
     _graceTimer?.cancel();
-    _progressTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _onDetect(BarcodeCapture capture) {
     if (_isProcessing) return;
+    if (_scanAreaRect == Rect.zero) return; // Henüz hesaplanmadı
 
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) {
@@ -50,7 +52,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // CENTER-MATCHING: Merkeze en yakın QR kodu seç
+    // 1. Sadece geçerli barcodeları al
     final validBarcodes = barcodes.where(
       (b) => b.rawValue != null && b.rawValue!.isNotEmpty && b.corners != null && b.corners!.length >= 4,
     ).toList();
@@ -60,16 +62,32 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // Ekran merkezi (tarama alanı)
-    final screenSize = MediaQuery.of(context).size;
-    final centerX = screenSize.width / 2;
-    final centerY = screenSize.height / 2 - 40;
+    // 2. SCAN AREA FİLTRESİ: Sadece merkezi tarama alanının İÇİNDE olan QR'ları kabul et
+    final inAreaBarcodes = validBarcodes.where((barcode) {
+      final corners = barcode.corners!;
+      double bx = 0, by = 0;
+      for (final corner in corners) {
+        bx += corner.dx;
+        by += corner.dy;
+      }
+      bx /= corners.length;
+      by /= corners.length;
+      return _scanAreaRect.contains(Offset(bx, by));
+    }).toList();
 
-    // En yakın QR'ı bul
+    if (inAreaBarcodes.isEmpty) {
+      _startGracePeriod();
+      return;
+    }
+
+    // 3. Tarama alanı merkezine en yakın QR'ı seç
+    final centerX = _scanAreaRect.center.dx;
+    final centerY = _scanAreaRect.center.dy;
+
     Barcode? closest;
     double minDist = double.infinity;
 
-    for (final barcode in validBarcodes) {
+    for (final barcode in inAreaBarcodes) {
       final corners = barcode.corners!;
       double bx = 0, by = 0;
       for (final corner in corners) {
@@ -89,18 +107,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final code = closest?.rawValue;
     if (code == null || code.isEmpty) return;
 
-    // Grace period iptal — kod var
     _graceTimer?.cancel();
 
     if (code == _lastScannedCode) {
-      // Aynı kod — dwell devam ediyor, progress güncelle
+      // Aynı kod — dwell progress güncelle
       if (_dwellStartTime != null) {
         final elapsed = DateTime.now().difference(_dwellStartTime!).inMilliseconds;
         final progress = (elapsed / dwellMs).clamp(0.0, 1.0);
         if (mounted) setState(() => _dwellProgress = progress);
         if (elapsed >= dwellMs) {
           _dwellTimer?.cancel();
-          _progressTimer?.cancel();
           _processCode(code);
         }
       }
@@ -110,19 +126,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     // Yeni kod — dwell sıfırla
     _lastScannedCode = code;
     _dwellStartTime = DateTime.now();
-    _startDwellTimer(code);
-  }
-
-  void _startDwellTimer(String code) {
     _dwellTimer?.cancel();
-    _progressTimer?.cancel();
+    setState(() => _dwellProgress = 0.0);
 
-    setState(() {
-      _dwellProgress = 0.0;
-    });
-
-    // Fallback timer — unrestricted mode handles progress in _onDetect
-    // but this timer ensures processCode fires even if detection stops
     _dwellTimer = Timer(Duration(milliseconds: dwellMs + 100), () {
       if (_lastScannedCode == code && !_isProcessing) {
         _processCode(code);
@@ -133,13 +139,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   void _startGracePeriod() {
     _graceTimer?.cancel();
     _graceTimer = Timer(gracePeriod, () {
-      // Code lost for too long, reset
       _dwellTimer?.cancel();
-      _progressTimer?.cancel();
       if (mounted) {
         setState(() {
           _lastScannedCode = null;
           _dwellProgress = 0.0;
+          _dwellStartTime = null;
         });
       }
     });
@@ -164,10 +169,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         _isProcessing = false;
         _lastScannedCode = null;
         _dwellProgress = 0.0;
+        _dwellStartTime = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ürün bulunamadı: $code'),
+          content: Text('${AppLocalizations.get('product_not_found')}: $code'),
           backgroundColor: Colors.red[700],
           behavior: SnackBarBehavior.floating,
         ),
@@ -209,6 +215,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         final scanAreaSize = constraints.maxWidth * 0.7;
         final left = (constraints.maxWidth - scanAreaSize) / 2;
         final top = (constraints.maxHeight - scanAreaSize) / 2 - 40;
+
+        // Tarama alanı Rect'ini kaydet (onDetect'te kullanılacak)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final newRect = Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize);
+          if (_scanAreaRect != newRect) {
+            _scanAreaRect = newRect;
+          }
+        });
 
         return Stack(
           children: [

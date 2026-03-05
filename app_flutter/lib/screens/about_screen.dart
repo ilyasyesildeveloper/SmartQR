@@ -213,15 +213,27 @@ class _AboutScreenState extends State<AboutScreen> {
       return _buildCard(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.person, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('İlyas YEŞİL tarafından geliştirildi.',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+              Row(
+                children: [
+                  Icon(Icons.person, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('İlyas YEŞİL tarafından geliştirildi.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ),
+              if (_myDataService.lastError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Debug: ${_myDataService.lastError}',
+                  style: TextStyle(fontSize: 10, color: Colors.red[300]),
+                ),
+              ],
             ],
           ),
         ),
