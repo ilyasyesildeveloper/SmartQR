@@ -46,26 +46,22 @@ class ProductProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Search products
-  Future<void> searchProducts(String query) async {
+  /// Search products locally (from already-loaded products)
+  void searchProducts(String query) {
     if (query.isEmpty) {
       _searchResults = [];
       notifyListeners();
       return;
     }
 
-    _isLoading = true;
+    final lowerQuery = query.toLowerCase();
+    _searchResults = _products
+        .where((product) =>
+            product.itemName.toLowerCase().contains(lowerQuery) ||
+            product.qrText.toLowerCase().contains(lowerQuery) ||
+            product.id.toLowerCase().contains(lowerQuery))
+        .toList();
     notifyListeners();
-
-    try {
-      _searchResults = await _firebaseService.searchProducts(query);
-      _errorMessage = null;
-    } catch (e) {
-      _errorMessage = 'Arama hatası: $e';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   /// Select a product (by QR scan or manual search)
@@ -107,7 +103,7 @@ class ProductProvider extends ChangeNotifier {
       return count;
     } catch (e) {
       _errorMessage = 'CSV yükleme hatası: $e';
-      return 0;
+      rethrow; // Let UI handle the error display
     } finally {
       _isLoading = false;
       notifyListeners();

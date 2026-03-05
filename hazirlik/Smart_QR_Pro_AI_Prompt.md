@@ -177,3 +177,7 @@ app_flutter/
 
 ---
 Bu projenin temel felsefesi: **"Esnek Veri, Sabit Performans"** ilkesidir.
+
+
+
+Tasarım Ekranları klasördedir.

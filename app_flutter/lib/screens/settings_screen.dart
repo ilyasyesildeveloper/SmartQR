@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -89,7 +90,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result == null || result.files.single.path == null) return;
 
     final file = File(result.files.single.path!);
-    final csvContent = await file.readAsString(encoding: const SystemEncoding());
+    // Try UTF-8 first, fallback to Latin1
+    String csvContent;
+    try {
+      csvContent = await file.readAsString(encoding: utf8);
+    } catch (_) {
+      csvContent = await file.readAsString(encoding: latin1);
+    }
 
     if (!mounted) return;
 
@@ -119,17 +126,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed != true || !mounted) return;
 
-    final provider = context.read<ProductProvider>();
-    final count = await provider.uploadCsv(csvContent);
+    try {
+      final provider = context.read<ProductProvider>();
+      final count = await provider.uploadCsv(csvContent);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$count ürün başarıyla yüklendi!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$count ürün başarıyla yüklendi!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Yükleme hatası: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
@@ -406,8 +426,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.info_outline,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              title: const Text('Smart QR'),
-              subtitle: const Text('v1.0.0 - Evrensel Ürün Yönetim Sistemi'),
+              title: const Text('Smart QR Pro'),
+              subtitle: const Text('v1.0.1 - Evrensel Ürün Yönetim Sistemi'),
             ),
             const Divider(height: 1),
             ListTile(

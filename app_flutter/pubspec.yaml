@@ -1,7 +1,7 @@
 name: smart_qr
 description: "Smart QR - Evrensel Ürün Yönetim Sistemi"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.1
