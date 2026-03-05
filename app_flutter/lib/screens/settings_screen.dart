@@ -3,10 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/product_provider.dart';
+import '../l10n/app_localizations.dart';
+import 'about_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final VoidCallback? onLanguageChanged;
+  const SettingsScreen({super.key, this.onLanguageChanged});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -26,11 +30,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  String _t(String key) => AppLocalizations.get(key);
+
   Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      setState(() {
-        _loginError = 'Email ve şifre giriniz.';
-      });
+      setState(() => _loginError = _t('email_password_required'));
       return;
     }
 
@@ -46,12 +50,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _passwordController.text,
       );
       if (mounted) {
-        setState(() {
-          _isLoginLoading = false;
-        });
+        setState(() => _isLoginLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Admin girişi başarılı!'),
+          SnackBar(
+            content: Text(_t('login_success')),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -61,7 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() {
           _isLoginLoading = false;
-          _loginError = 'Giriş başarısız: ${e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim()}';
+          _loginError = '${_t('login_failed')}: ${e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim()}';
         });
       }
     }
@@ -73,8 +75,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Çıkış yapıldı.'),
+        SnackBar(
+          content: Text(_t('logged_out')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -90,7 +92,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result == null || result.files.single.path == null) return;
 
     final file = File(result.files.single.path!);
-    // Try UTF-8 first, fallback to Latin1
     String csvContent;
     try {
       csvContent = await file.readAsString(encoding: utf8);
@@ -100,25 +101,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!mounted) return;
 
-    // Show file info
     final lineCount = csvContent.split('\n').where((l) => l.trim().isNotEmpty).length;
 
-    // Confirm upload
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('CSV Yükle'),
+        title: Text(_t('upload_confirm_title')),
         content: Text(
-          '${result.files.single.name}\n$lineCount satır bulundu.\nFirestore\'a yüklemek istiyor musunuz?',
+          '${result.files.single.name}\n$lineCount ${_t('lines_found')}\n${_t('upload_confirm_msg')}',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
+            child: Text(_t('cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yükle'),
+            child: Text(_t('upload')),
           ),
         ],
       ),
@@ -133,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$count ürün başarıyla yüklendi!'),
+            content: Text('$count ${_t('upload_success')}'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -143,7 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Yükleme hatası: $e'),
+            content: Text('${_t('upload_error')}: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
@@ -159,11 +158,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${provider.products.length} ürün yenilendi.'),
+          content: Text('${provider.products.length} ${_t('products_refreshed')}'),
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  Future<void> _changeLanguage(String lang) async {
+    AppLocalizations.setLocale(lang);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_language', lang);
+    widget.onLanguageChanged?.call();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -173,32 +180,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ayarlar'),
+        title: Text(_t('settings')),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Admin Login Section
-          _buildSectionTitle('Admin Girişi'),
-          const SizedBox(height: 8),
-          if (!isAdmin) ...[
-            _buildLoginCard(),
-          ] else ...[
-            _buildAdminStatusCard(),
-          ],
+          // Admin Login
+          _buildSectionTitle(_t('admin_login')),
+          const SizedBox(height: 6),
+          if (!isAdmin) _buildLoginCard() else _buildAdminStatusCard(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Data Management Section
-          _buildSectionTitle('Veri Yönetimi'),
-          const SizedBox(height: 8),
+          // Data Management
+          _buildSectionTitle(_t('data_management')),
+          const SizedBox(height: 6),
           _buildDataCard(isAdmin, provider),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // Language
+          _buildSectionTitle(_t('language')),
+          const SizedBox(height: 6),
+          _buildLanguageCard(),
+
+          const SizedBox(height: 16),
 
           // App Info
-          _buildSectionTitle('Uygulama Bilgisi'),
-          const SizedBox(height: 8),
+          _buildSectionTitle(_t('app_info')),
+          const SizedBox(height: 6),
           _buildInfoCard(provider),
         ],
       ),
@@ -211,10 +221,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           color: Theme.of(context).colorScheme.primary,
-          letterSpacing: 1.2,
+          letterSpacing: 1.0,
         ),
       ),
     );
@@ -223,73 +233,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildLoginCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Icon(
               Icons.admin_panel_settings,
-              size: 48,
+              size: 40,
               color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
               enableSuggestions: false,
               textCapitalization: TextCapitalization.none,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
+              decoration: InputDecoration(
+                labelText: _t('email'),
+                prefixIcon: const Icon(Icons.email_outlined),
+                isDense: true,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             TextField(
               controller: _passwordController,
               obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
-                labelText: 'Şifre',
+                labelText: _t('password'),
                 prefixIcon: const Icon(Icons.lock_outline),
+                isDense: true,
                 suffixIcon: IconButton(
                   icon: Icon(
-                    _isPasswordVisible
-                        ? Icons.visibility_off
-                        : Icons.visibility,
+                    _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _isPasswordVisible = !_isPasswordVisible;
-                    });
-                  },
+                  onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
               ),
             ),
             if (_loginError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _loginError!,
-                style: TextStyle(color: Colors.red[700], fontSize: 12),
-              ),
+              const SizedBox(height: 6),
+              Text(_loginError!, style: TextStyle(color: Colors.red[700], fontSize: 11)),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: _isLoginLoading ? null : _login,
               icon: _isLoginLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.login),
-              label: Text(_isLoginLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'),
+              label: Text(_isLoginLoading ? _t('logging_in') : _t('login')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -303,61 +300,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = provider.firebaseService.currentUser;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.verified_user, color: Colors.green, size: 28),
+                  child: const Icon(Icons.verified_user, color: Colors.green, size: 24),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Admin Girişi Aktif',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.green,
-                        ),
+                      Text(_t('admin_active'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green),
                       ),
-                      Text(
-                        user?.email ?? '',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                        ),
+                      Text(user?.email ?? '',
+                        style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _logout,
-                icon: const Icon(Icons.logout),
-                label: const Text('Çıkış Yap'),
+                icon: const Icon(Icons.logout, size: 18),
+                label: Text(_t('logout')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -369,49 +352,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildDataCard(bool isAdmin, ProductProvider provider) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // CSV Upload (Admin only)
-            ListTile(
-              leading: Icon(
-                Icons.upload_file,
-                color: isAdmin
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey,
-              ),
-              title: const Text('CSV Yükle'),
-              subtitle: Text(
-                isAdmin
-                    ? 'Firestore\'a CSV dosyası yükle'
-                    : 'Admin girişi gerekli',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              enabled: isAdmin,
-              onTap: isAdmin ? _pickAndUploadCsv : null,
+      child: Column(
+        children: [
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.upload_file,
+              color: isAdmin ? Theme.of(context).colorScheme.primary : Colors.grey,
+              size: 22,
             ),
-            const Divider(height: 1),
-            // Refresh
-            ListTile(
-              leading: Icon(
-                Icons.sync,
-                color: Theme.of(context).colorScheme.primary,
+            title: Text(_t('csv_upload'), style: const TextStyle(fontSize: 14)),
+            subtitle: Text(
+              isAdmin ? _t('csv_upload_desc') : _t('admin_required'),
+              style: const TextStyle(fontSize: 11),
+            ),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            enabled: isAdmin,
+            onTap: isAdmin ? _pickAndUploadCsv : null,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.sync, color: Theme.of(context).colorScheme.primary, size: 22),
+            title: Text(_t('refresh_data'), style: const TextStyle(fontSize: 14)),
+            subtitle: Text(
+              provider.lastSyncTime != null
+                  ? '${provider.products.length} ${_t('products_count')} | ${_t('last_sync')}: ${_formatDate(provider.lastSyncTime!)}'
+                  : '${provider.products.length} ${_t('products_count')} | ${_t('not_synced')}',
+              style: const TextStyle(fontSize: 11),
+            ),
+            trailing: provider.isLoading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right, size: 20),
+            onTap: provider.isLoading ? null : _refreshProducts,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageCard() {
+    final currentLang = AppLocalizations.locale;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.translate, color: Theme.of(context).colorScheme.primary, size: 22),
+            const SizedBox(width: 12),
+            Text(_t('language'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            const Spacer(),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(value: 'tr', label: Text(_t('turkish'), style: const TextStyle(fontSize: 12))),
+                ButtonSegment(value: 'en', label: Text(_t('english'), style: const TextStyle(fontSize: 12))),
+              ],
+              selected: {currentLang},
+              onSelectionChanged: (Set<String> newSelection) {
+                _changeLanguage(newSelection.first);
+              },
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              title: const Text('Verileri Güncelle'),
-              subtitle: Text(
-                provider.lastSyncTime != null
-                    ? '${provider.products.length} ürün | Son: ${_formatDate(provider.lastSyncTime!)}'
-                    : '${provider.products.length} ürün | Henüz senkronize edilmedi',
-              ),
-              trailing: provider.isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.chevron_right),
-              onTap: provider.isLoading ? null : _refreshProducts,
             ),
           ],
         ),
@@ -421,29 +423,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildInfoCard(ProductProvider provider) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.info_outline,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text('Smart QR Pro'),
-              subtitle: const Text('v1.0.2 - Evrensel Ürün Yönetim Sistemi'),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(
-                Icons.storage,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text('Veritabanı'),
-              subtitle: Text('${provider.products.length} ürün kayıtlı'),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary, size: 22),
+            title: Text(_t('app_name'), style: const TextStyle(fontSize: 14)),
+            subtitle: Text('v1.1.0 - ${_t('app_subtitle')}', style: const TextStyle(fontSize: 11)),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.storage, color: Theme.of(context).colorScheme.primary, size: 22),
+            title: Text(_t('database'), style: const TextStyle(fontSize: 14)),
+            subtitle: Text('${provider.products.length} ${_t('products_registered')}', style: const TextStyle(fontSize: 11)),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.primary, size: 22),
+            title: Text(_t('about'), style: const TextStyle(fontSize: 14)),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
+            },
+          ),
+        ],
       ),
     );
   }

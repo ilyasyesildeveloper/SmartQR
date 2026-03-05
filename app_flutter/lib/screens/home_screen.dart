@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/product_provider.dart';
 import '../models/product_model.dart';
 import '../theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 import 'qr_scanner_screen.dart';
 import 'settings_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -89,14 +90,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smart QR Pro'),
+        title: Text(AppLocalizations.get('app_name')),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                MaterialPageRoute(builder: (_) => SettingsScreen(
+                  onLanguageChanged: () { if (mounted) setState(() {}); },
+                )),
               );
             },
           ),
@@ -180,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           textCapitalization: TextCapitalization.characters,
           style: const TextStyle(fontWeight: FontWeight.w600),
           decoration: InputDecoration(
-            hintText: 'Ürün adı ile ara...',
+            hintText: AppLocalizations.get('search_hint'),
             prefixIcon: const Icon(Icons.search),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(
@@ -426,13 +429,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDetailsOverlay(Product product) {
-    final allProperties = <String, String>{
-      'Tür': product.type,
-      'Seri': product.series,
-      ...product.properties.map(
-        (key, value) => MapEntry(key, product.formatProperty(key, value)),
-      ),
-    };
+    final allProperties = <String, String>{};
+    
+    // Add type and series first with translated names
+    if (product.type.isNotEmpty) {
+      allProperties[AppLocalizations.propertyName('type')] = product.type;
+    }
+    if (product.series.isNotEmpty) {
+      allProperties[AppLocalizations.propertyName('series')] = product.series;
+    }
+    
+    // Add dynamic properties in CSV order with translated names and 2-digit formatting
+    for (final entry in product.properties.entries) {
+      if (entry.value.toString().trim().isEmpty) continue;
+      final displayName = AppLocalizations.propertyName(entry.key);
+      final displayValue = product.formatProperty(entry.key, entry.value);
+      allProperties[displayName] = displayValue;
+    }
 
     // Remove empty values
     allProperties.removeWhere((_, v) => v.isEmpty);
@@ -479,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Ürün Özellikleri',
+                    AppLocalizations.get('details'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -563,7 +576,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 24),
           Text(
-            'Ürün Görüntülemek İçin',
+            AppLocalizations.locale == 'tr'
+                ? 'Ürün Görüntülemek İçin'
+                : 'To View a Product',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -572,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 8),
           Text(
-            'QR kodu okutun veya yukarıdan arayın',
+            AppLocalizations.get('no_product'),
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),

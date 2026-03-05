@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'providers/product_provider.dart';
 import 'screens/home_screen.dart';
+import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Restore saved language preference
+  final prefs = await SharedPreferences.getInstance();
+  final savedLang = prefs.getString('app_language') ?? 'tr';
+  AppLocalizations.setLocale(savedLang);
+
   runApp(const SmartQRApp());
 }
 

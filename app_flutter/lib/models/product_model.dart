@@ -86,15 +86,32 @@ class Product {
     };
   }
 
-  /// Format numeric values as two digits
+  /// Format property values: single-digit numbers become 2-digit (1→01, 2→02)
   String formatProperty(String key, dynamic value) {
-    final numericKeys = {'#', 'series', 'pattern', 'model', 'number'};
-    if (numericKeys.contains(key.toLowerCase())) {
-      final numVal = int.tryParse(value.toString());
+    final str = value.toString().trim();
+    if (str.isEmpty) return str;
+    
+    // If value is a single character and it's a digit, pad to 2 digits
+    if (str.length == 1) {
+      final numVal = int.tryParse(str);
       if (numVal != null) {
         return numVal.toString().padLeft(2, '0');
       }
     }
-    return value.toString();
+    
+    // For dot-separated values like "2707.XW" or "05.XW", pad the numeric parts
+    if (str.contains('.')) {
+      final parts = str.split('.');
+      final formatted = parts.map((p) {
+        if (p.length == 1) {
+          final n = int.tryParse(p);
+          if (n != null) return n.toString().padLeft(2, '0');
+        }
+        return p;
+      }).join('.');
+      return formatted;
+    }
+    
+    return str;
   }
 }

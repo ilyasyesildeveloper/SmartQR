@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/product_provider.dart';
 import '../theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -27,7 +28,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Timer? _progressTimer;
   bool _torchOn = false;
 
-  static const Duration dwellDuration = Duration(milliseconds: 1200);
+  static const Duration dwellDuration = Duration(milliseconds: 1000);
   static const Duration gracePeriod = Duration(milliseconds: 150);
 
   @override
@@ -44,24 +45,60 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) {
-      // Start grace period before resetting
       _startGracePeriod();
       return;
     }
 
-    // Pick the first detected barcode
-    final code = barcodes.first.rawValue;
-    if (code == null || code.isEmpty) return;
+    // CENTER-MATCHING: Birden fazla QR görünüyorsa, tarama alanının
+    // merkezine en yakın olanı seç (Kotlin referansından)
+    final validBarcodes = barcodes.where(
+      (b) => b.rawValue != null && b.rawValue!.isNotEmpty && b.corners != null && b.corners!.length >= 4,
+    ).toList();
 
-    // Cancel grace period if we have a code
-    _graceTimer?.cancel();
-
-    if (code == _lastScannedCode) {
-      // Same code - dwell timer already running
+    if (validBarcodes.isEmpty) {
+      _startGracePeriod();
       return;
     }
 
-    // New code detected - start dwell time
+    // Ekran merkezini hesapla (tarama alanı ekranın ortasında)
+    final screenSize = MediaQuery.of(context).size;
+    final centerX = screenSize.width / 2;
+    final centerY = screenSize.height / 2 - 40; // overlay offset
+
+    // En yakın QR kodunu bul (Öklid mesafesi)
+    Barcode? closest;
+    double minDist = double.infinity;
+
+    for (final barcode in validBarcodes) {
+      final corners = barcode.corners!;
+      // QR kodun merkez noktası: 4 köşenin ortalaması
+      double bx = 0, by = 0;
+      for (final corner in corners) {
+        bx += corner.dx;
+        by += corner.dy;
+      }
+      bx /= corners.length;
+      by /= corners.length;
+
+      final dx = bx - centerX;
+      final dy = by - centerY;
+      final dist = dx * dx + dy * dy;
+
+      if (dist < minDist) {
+        minDist = dist;
+        closest = barcode;
+      }
+    }
+
+    final code = closest?.rawValue;
+    if (code == null || code.isEmpty) return;
+
+    // Cancel grace period
+    _graceTimer?.cancel();
+
+    if (code == _lastScannedCode) return; // Same code, dwell running
+
+    // New code — start dwell
     _lastScannedCode = code;
     _startDwellTimer(code);
   }
@@ -230,7 +267,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 top: top + scanAreaSize + 16,
                 width: scanAreaSize,
                 child: Text(
-                  'Odaklanıyor... ${(_dwellProgress * 100).toInt()}%',
+                  '${AppLocalizations.get('focusing')} ${(_dwellProgress * 100).toInt()}%',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,
@@ -265,7 +302,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             ),
             const Spacer(),
             Text(
-              'QR Tara',
+              AppLocalizations.get('scan_title'),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.9),
                 fontSize: 18,
@@ -314,15 +351,15 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Widget _buildProcessingOverlay() {
     return Container(
       color: Colors.black.withValues(alpha: 0.7),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
+            const CircularProgressIndicator(color: Colors.white),
+            const SizedBox(height: 16),
             Text(
-              'Ürün aranıyor...',
-              style: TextStyle(color: Colors.white, fontSize: 16),
+              AppLocalizations.get('searching_product'),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
           ],
         ),
