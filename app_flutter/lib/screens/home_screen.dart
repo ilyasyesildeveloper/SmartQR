@@ -18,10 +18,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  final LayerLink _layerLink = LayerLink();
   late AnimationController _fabAnimationController;
   late Animation<double> _fabBounce;
   bool _showDetails = false;
   Timer? _debounce;
+  OverlayEntry? _overlayEntry;
 
   @override
   void initState() {
@@ -46,13 +48,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _searchFocusNode.dispose();
     _fabAnimationController.dispose();
     _debounce?.cancel();
+    _removeOverlay();
     super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
   }
 
   void _onProductSelected(Product product) {
     context.read<ProductProvider>().selectProduct(product);
     _searchController.clear();
     _searchFocusNode.unfocus();
+    _removeOverlay();
     context.read<ProductProvider>().searchProducts('');
     // Bounce FAB to hint at details
     _fabAnimationController.forward().then((_) {
@@ -101,18 +110,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             );
           }
 
-          return Column(
+          return Stack(
             children: [
-              // Search bar
-              _buildSearchBar(provider),
+              Column(
+                children: [
+                  // Search bar
+                  _buildSearchBar(provider),
 
-              // Main content: product image OR search results
-              Expanded(
-                child: provider.searchResults.isNotEmpty
-                    ? _buildSearchResults(provider)
-                    : provider.selectedProduct != null
+                  // Main content: product image or empty state
+                  Expanded(
+                    child: provider.selectedProduct != null
                         ? _buildProductView(provider.selectedProduct!)
                         : _buildEmptyState(),
+                  ),
+                ],
               ),
             ],
           );
@@ -155,41 +166,123 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildSearchBar(ProductProvider provider) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-      ),
-      child: TextField(
-        controller: _searchController,
-        focusNode: _searchFocusNode,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Ürün adı veya kodu ile ara...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    provider.searchProducts('');
-                    _searchFocusNode.unfocus();
-                    setState(() {});
-                  },
-                )
-              : null,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
         ),
-        onChanged: (query) {
-          setState(() {}); // Update suffix icon
-          _debounce?.cancel();
-          _debounce = Timer(const Duration(milliseconds: 300), () {
-            provider.searchProducts(query);
-          });
-        },
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          textInputAction: TextInputAction.search,
+          textCapitalization: TextCapitalization.characters,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            hintText: 'Ürün adı ile ara...',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      provider.searchProducts('');
+                      _searchFocusNode.unfocus();
+                      _removeOverlay();
+                      setState(() {});
+                    },
+                  )
+                : null,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          ),
+          onChanged: (query) {
+            setState(() {}); // Update suffix icon
+            _debounce?.cancel();
+            _debounce = Timer(const Duration(milliseconds: 150), () {
+              provider.searchProducts(query);
+              _showDropdown(provider);
+            });
+          },
+        ),
       ),
     );
+  }
+
+  void _showDropdown(ProductProvider provider) {
+    _removeOverlay();
+    
+    if (provider.searchResults.isEmpty || _searchController.text.isEmpty) {
+      return;
+    }
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: MediaQuery.of(context).size.width - 32,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0, 60),
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.35,
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: provider.searchResults.length,
+                itemBuilder: (context, index) {
+                  final product = provider.searchResults[index];
+                  return ListTile(
+                    dense: true,
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CachedNetworkImage(
+                        imageUrl: product.imageUrl,
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          width: 40, height: 40,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.image, size: 20, color: Colors.grey),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 40, height: 40,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.broken_image, size: 20, color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      product.itemName.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${product.type} - ${product.series}'.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    onTap: () => _onProductSelected(product),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
   }
 
   Widget _buildSearchResults(ProductProvider provider) {

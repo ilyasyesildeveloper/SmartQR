@@ -1,7 +1,7 @@
 name: smart_qr
 description: "Smart QR - Evrensel Ürün Yönetim Sistemi"
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.11.1
@@ -37,6 +37,7 @@ dependencies:
 
   # File picker (CSV import)
   file_picker: ^9.2.1
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

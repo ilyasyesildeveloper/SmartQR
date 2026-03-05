@@ -44,17 +44,28 @@ class FirebaseService {
 
   /// Upload products to Firestore from CSV string
   Future<int> uploadCsvToFirestore(String csvContent) async {
+    // Strip UTF-8 BOM if present
+    if (csvContent.startsWith('\uFEFF')) {
+      csvContent = csvContent.substring(1);
+    }
+    // Normalize line endings
+    csvContent = csvContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
     // Parse CSV with ; as delimiter
     final rows = const CsvToListConverter(
       fieldDelimiter: ';',
       shouldParseNumbers: false,
+      eol: '\n',
     ).convert(csvContent);
 
     if (rows.isEmpty) {
       throw Exception('CSV dosyası boş.');
     }
 
-    final headers = rows.first.map((e) => e.toString().trim()).toList();
+    // Clean headers: trim whitespace and remove invisible characters
+    final headers = rows.first
+        .map((e) => e.toString().trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F\uFEFF]'), ''))
+        .toList();
     
     // Validate headers
     if (!headers.contains('id')) {

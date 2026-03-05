@@ -395,11 +395,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Refresh
             ListTile(
               leading: Icon(
-                Icons.refresh,
+                Icons.sync,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              title: const Text('Verileri Yenile'),
-              subtitle: Text('${provider.products.length} ürün mevcut'),
+              title: const Text('Verileri Güncelle'),
+              subtitle: Text(
+                provider.lastSyncTime != null
+                    ? '${provider.products.length} ürün | Son: ${_formatDate(provider.lastSyncTime!)}'
+                    : '${provider.products.length} ürün | Henüz senkronize edilmedi',
+              ),
               trailing: provider.isLoading
                   ? const SizedBox(
                       width: 20,
@@ -427,7 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               title: const Text('Smart QR Pro'),
-              subtitle: const Text('v1.0.1 - Evrensel Ürün Yönetim Sistemi'),
+              subtitle: const Text('v1.0.2 - Evrensel Ürün Yönetim Sistemi'),
             ),
             const Divider(height: 1),
             ListTile(
@@ -442,5 +446,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
