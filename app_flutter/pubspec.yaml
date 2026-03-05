@@ -1,0 +1,58 @@
+name: smart_qr
+description: "Smart QR - Evrensel Ürün Yönetim Sistemi"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.4
+  cloud_firestore: ^5.6.7
+
+  # QR / Barcode Scanning
+  mobile_scanner: ^7.0.2
+
+  # Image loading & caching
+  cached_network_image: ^3.4.1
+
+  # CSV parsing
+  csv: ^6.0.0
+
+  # State management
+  provider: ^6.1.4
+
+  # Google Fonts
+  google_fonts: ^6.2.1
+
+  # Local key-value storage
+  shared_preferences: ^2.5.3
+
+  # File picker (CSV import)
+  file_picker: ^9.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 23
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

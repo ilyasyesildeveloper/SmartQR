@@ -7,11 +7,10 @@ This plan outlines the migration and development of the SmartQR application from
 ## User Review Required
 
 > [!IMPORTANT]
-> - **Employee Focused**: The UI will be optimized for employees to identify products quickly.
-> - **Universal Data**: The app will parse `;` separated CSV files (like [carpets_roll_test.csv](file:///c:/yesileee/SmartQR/hazirlik/carpets_roll_test.csv)) to populate product database.
-> - **Image-First UI**: The product image will take up the majority of the screen space.
-> - **Manual Entry**: A search bar or manual entry field will be added for identify products by name.
-> - **Simplified Details**: Technical properties will be accessible via a corner button, removing e-commerce/buy elements.
+> - **Admin Login & Settings**: A dedicated screen for admin login (Email/Password) to manage data.
+> - **Primary Collection**: Data will be stored exclusively in the `smartqrflutter` collection.
+> - **Firebase Rules**: Restrict write access to Email/Password authenticated users only.
+> - **CSV Sync**: Admin can upload and sync the `;` separated CSV file to Firestore.
 
 ## Proposed Changes
 
@@ -31,6 +30,9 @@ Prioritizes the product image. Includes a manual search bar at the top and a cor
 
 #### [NEW] [qr_scanner_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/qr_scanner_screen.dart)
 Mobile scanner with 1.2s dwell time. Redirects to main screen on success.
+
+#### [NEW] [settings_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/settings_screen.dart)
+Admin login interface (Email/Password) and CSV sync button.
 
 #### [NEW] [details_panel.dart](file:///c:/yesileee/SmartQR/lib/widgets/details_panel.dart)
 A toggleable overlay or side panel for displaying dynamic properties from the CSV.
