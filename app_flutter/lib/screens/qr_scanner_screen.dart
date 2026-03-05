@@ -14,11 +14,7 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.unrestricted,
-    facing: CameraFacing.back,
-    torchEnabled: false,
-  );
+  MobileScannerController? _controller;
 
   String? _lastScannedCode;
   Timer? _dwellTimer;
@@ -31,20 +27,45 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   static const int dwellMs = 1000;
   static const Duration gracePeriod = Duration(milliseconds: 400);
 
-  // Tarama alanı sınırları (build sırasında hesaplanır)
-  Rect _scanAreaRect = Rect.zero;
+  // Scan window (ekran koordinatları, build sırasında hesaplanır)
+  Rect? _scanWindow;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initScanWindow();
+  }
+
+  void _initScanWindow() {
+    final size = MediaQuery.of(context).size;
+    final scanAreaSize = size.width * 0.7;
+    final left = (size.width - scanAreaSize) / 2;
+    final top = (size.height - scanAreaSize) / 2 - 40;
+
+    final newScanWindow = Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize);
+
+    if (_scanWindow != newScanWindow) {
+      _scanWindow = newScanWindow;
+      // Controller'ı scanWindow ile oluştur
+      _controller?.dispose();
+      _controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.unrestricted,
+        facing: CameraFacing.back,
+        torchEnabled: false,
+      );
+    }
+  }
 
   @override
   void dispose() {
     _dwellTimer?.cancel();
     _graceTimer?.cancel();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   void _onDetect(BarcodeCapture capture) {
     if (_isProcessing) return;
-    if (_scanAreaRect == Rect.zero) return; // Henüz hesaplanmadı
 
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) {
@@ -52,9 +73,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // 1. Sadece geçerli barcodeları al
+    // scanWindow zaten native seviyede filtreleme yapıyor
+    // Geçerli barcodeları al
     final validBarcodes = barcodes.where(
-      (b) => b.rawValue != null && b.rawValue!.isNotEmpty && b.corners != null && b.corners!.length >= 4,
+      (b) => b.rawValue != null && b.rawValue!.isNotEmpty,
     ).toList();
 
     if (validBarcodes.isEmpty) {
@@ -62,49 +84,40 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // 2. SCAN AREA FİLTRESİ: Sadece merkezi tarama alanının İÇİNDE olan QR'ları kabul et
-    final inAreaBarcodes = validBarcodes.where((barcode) {
-      final corners = barcode.corners!;
-      double bx = 0, by = 0;
-      for (final corner in corners) {
-        bx += corner.dx;
-        by += corner.dy;
-      }
-      bx /= corners.length;
-      by /= corners.length;
-      return _scanAreaRect.contains(Offset(bx, by));
-    }).toList();
+    // Birden fazla varsa corners ile merkeze en yakınını seç
+    String? code;
+    if (validBarcodes.length == 1) {
+      code = validBarcodes.first.rawValue;
+    } else if (_scanWindow != null) {
+      final centerX = _scanWindow!.center.dx;
+      final centerY = _scanWindow!.center.dy;
+      
+      Barcode? closest;
+      double minDist = double.infinity;
 
-    if (inAreaBarcodes.isEmpty) {
-      _startGracePeriod();
-      return;
+      for (final barcode in validBarcodes) {
+        if (barcode.corners != null && barcode.corners!.length >= 4) {
+          final corners = barcode.corners!;
+          double bx = 0, by = 0;
+          for (final corner in corners) {
+            bx += corner.dx;
+            by += corner.dy;
+          }
+          bx /= corners.length;
+          by /= corners.length;
+
+          final dist = (bx - centerX) * (bx - centerX) + (by - centerY) * (by - centerY);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = barcode;
+          }
+        }
+      }
+      code = closest?.rawValue ?? validBarcodes.first.rawValue;
+    } else {
+      code = validBarcodes.first.rawValue;
     }
 
-    // 3. Tarama alanı merkezine en yakın QR'ı seç
-    final centerX = _scanAreaRect.center.dx;
-    final centerY = _scanAreaRect.center.dy;
-
-    Barcode? closest;
-    double minDist = double.infinity;
-
-    for (final barcode in inAreaBarcodes) {
-      final corners = barcode.corners!;
-      double bx = 0, by = 0;
-      for (final corner in corners) {
-        bx += corner.dx;
-        by += corner.dy;
-      }
-      bx /= corners.length;
-      by /= corners.length;
-
-      final dist = (bx - centerX) * (bx - centerX) + (by - centerY) * (by - centerY);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = barcode;
-      }
-    }
-
-    final code = closest?.rawValue;
     if (code == null || code.isEmpty) return;
 
     _graceTimer?.cancel();
@@ -131,7 +144,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
     _dwellTimer = Timer(Duration(milliseconds: dwellMs + 100), () {
       if (_lastScannedCode == code && !_isProcessing) {
-        _processCode(code);
+        _processCode(code!);
       }
     });
   }
@@ -183,14 +196,22 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_controller == null || _scanWindow == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera view
+          // Camera view — scanWindow ile native filtreleme!
           MobileScanner(
-            controller: _controller,
+            controller: _controller!,
             onDetect: _onDetect,
+            scanWindow: _scanWindow!, // ← NATIVE ALAN SINIRLAMASI
           ),
 
           // Dark overlay with cutout
@@ -215,14 +236,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         final scanAreaSize = constraints.maxWidth * 0.7;
         final left = (constraints.maxWidth - scanAreaSize) / 2;
         final top = (constraints.maxHeight - scanAreaSize) / 2 - 40;
-
-        // Tarama alanı Rect'ini kaydet (onDetect'te kullanılacak)
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final newRect = Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize);
-          if (_scanAreaRect != newRect) {
-            _scanAreaRect = newRect;
-          }
-        });
 
         return Stack(
           children: [
@@ -343,7 +356,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           child: InkWell(
             borderRadius: BorderRadius.circular(30),
             onTap: () {
-              _controller.toggleTorch();
+              _controller?.toggleTorch();
               setState(() {
                 _torchOn = !_torchOn;
               });
@@ -399,7 +412,7 @@ class _ScanFramePainter extends CustomPainter {
     const cornerLength = 30.0;
     const radius = 20.0;
 
-    // Top-left corner
+    // Top-left
     canvas.drawPath(
       Path()
         ..moveTo(0, cornerLength)
@@ -409,7 +422,7 @@ class _ScanFramePainter extends CustomPainter {
       paint,
     );
 
-    // Top-right corner
+    // Top-right
     canvas.drawPath(
       Path()
         ..moveTo(size.width - cornerLength, 0)
@@ -419,7 +432,7 @@ class _ScanFramePainter extends CustomPainter {
       paint,
     );
 
-    // Bottom-right corner
+    // Bottom-right
     canvas.drawPath(
       Path()
         ..moveTo(size.width, size.height - cornerLength)
@@ -429,7 +442,7 @@ class _ScanFramePainter extends CustomPainter {
       paint,
     );
 
-    // Bottom-left corner
+    // Bottom-left
     canvas.drawPath(
       Path()
         ..moveTo(cornerLength, size.height)
@@ -439,7 +452,7 @@ class _ScanFramePainter extends CustomPainter {
       paint,
     );
 
-    // Progress indicator around the frame
+    // Progress arc
     if (progress > 0) {
       final progressPaint = Paint()
         ..color = AppTheme.accentGold

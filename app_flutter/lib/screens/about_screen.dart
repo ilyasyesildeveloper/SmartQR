@@ -204,10 +204,23 @@ class _AboutScreenState extends State<AboutScreen> {
       );
     }
 
-    // Filter non-empty fields
-    final fields = _developerData.entries
+    // Filter non-empty fields, then sort in preferred order
+    final preferredOrder = ['name', 'company', 'web', 'email', 'phone', 'address'];
+    final allEntries = _developerData.entries
         .where((e) => e.value != null && e.value.toString().trim().isNotEmpty)
         .toList();
+    
+    // Sort: preferred order first, then any unknown fields
+    allEntries.sort((a, b) {
+      final ai = preferredOrder.indexOf(a.key);
+      final bi = preferredOrder.indexOf(b.key);
+      if (ai >= 0 && bi >= 0) return ai.compareTo(bi);
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.key.compareTo(b.key);
+    });
+    
+    final fields = allEntries;
 
     if (fields.isEmpty) {
       return _buildCard(
