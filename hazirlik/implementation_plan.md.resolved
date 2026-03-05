@@ -1,59 +1,101 @@
-# implementation_plan.md
+# Smart QR Pro v1.1.0 — Feature Update Plan
 
-# SmartQR Flutter App Implementation Plan
+## Özet
+7 ana değişiklik: QR center-matching, özellik görünüm düzeltmeleri, Hakkında sayfası, i18n altyapısı (TR/EN), ve UI iyileştirmeleri.
 
-This plan outlines the migration and development of the SmartQR application from Kotlin/Android to a cross-platform Flutter application.
-
-## User Review Required
-
-> [!IMPORTANT]
-> - **Admin Login & Settings**: A dedicated screen for admin login (Email/Password) to manage data.
-> - **Primary Collection**: Data will be stored exclusively in the `smartqrflutter` collection.
-> - **Firebase Rules**: Restrict write access to Email/Password authenticated users only.
-> - **CSV Sync**: Admin can upload and sync the `;` separated CSV file to Firestore.
+---
 
 ## Proposed Changes
 
-### Core Architecture
-- **Framework:** Flutter (Latest Stable)
-- **State Management:** Provider or Riverpod
-- **Database:** Isar (Local) + Firebase Firestore (Cloud)
-- **Auth:** Firebase Anonymous Auth
-- **QR Engine:** `mobile_scanner` or `google_mlkit_barcode_scanning`
+### 1. QR Scanner — Center Matching
+
+#### [MODIFY] [qr_scanner_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/qr_scanner_screen.dart)
+
+Kotlin referansından (satır 193-210) alınan mantık:
+- `BarcodeCapture.barcodes` listesinden her birinin `corners` koordinatlarını al
+- Her QR'ın merkez noktasını hesapla: [(corners ortalaması)](file:///c:/yesileee/SmartQR/app_flutter/lib/main.dart#9-16)
+- Tarama alanının merkez noktası ile Öklid mesafesi karşılaştır
+- En yakın olanı seç (`minBy` distance²)
+- Dwell time **1.0 saniye** olacak (1200 → 1000ms)
 
 ---
 
-### UI Components
+### 2. Özellik Görünüm Düzeltmeleri
 
-#### [NEW] [main_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/main_screen.dart)
-Prioritizes the product image. Includes a manual search bar at the top and a corner button to toggle technical details.
+#### [MODIFY] [product_model.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/models/product_model.dart)
 
-#### [NEW] [qr_scanner_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/qr_scanner_screen.dart)
-Mobile scanner with 1.2s dwell time. Redirects to main screen on success.
+- [properties](file:///c:/yesileee/SmartQR/local.properties) Map'i CSV sırasını korunacak şekilde `LinkedHashMap` ile saklanacak
+- `fromCsvRow` → sıralı ekleme (zaten `Map` sıralı Dart'ta)
+- [formatProperty](file:///c:/yesileee/SmartQR/app_flutter/lib/models/product_model.dart#89-100): Tek karakterli değerler 2 haneli olacak (1→01, 2→02)
+- Tüm sayısal alanlar, sadece belirli key'ler değil
 
-#### [NEW] [settings_screen.dart](file:///c:/yesileee/SmartQR/lib/screens/settings_screen.dart)
-Admin login interface (Email/Password) and CSV sync button.
+#### [MODIFY] [home_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/home_screen.dart)
 
-#### [NEW] [details_panel.dart](file:///c:/yesileee/SmartQR/lib/widgets/details_panel.dart)
-A toggleable overlay or side panel for displaying dynamic properties from the CSV.
+- Detay panelinde alan adları **BÜYÜK HARF** ve **Türkçe** gösterilecek
+- Alan adı çeviri haritası: `pattern` → `DESEN`, `color` → `RENK`, `model` → `MODEL`, `stock` → `STOK`, vb.
 
 ---
 
-### Data Layer
+### 3. Metin Değişiklikleri
 
-#### [NEW] [product_model.dart](file:///c:/yesileee/SmartQR/lib/models/product_model.dart)
-Flexible product model supporting dynamic properties via Map/JSON.
+- "Evrensel Ürün Yönetim Sistemi" → "QR Kod Ürün Yönetim Sistemi"  
+  Dosyalar: [settings_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/settings_screen.dart), [pubspec.yaml](file:///c:/yesileee/SmartQR/app_flutter/pubspec.yaml) description, [Smart_QR_Pro_AI_Prompt.md](file:///c:/yesileee/SmartQR/app_flutter/Smart_QR_Pro_AI_Prompt.md)
 
-#### [NEW] [sync_service.dart](file:///c:/yesileee/SmartQR/lib/services/sync_service.dart)
-Firebase Firestore sync logic with batch processing.
+---
 
-## Verification Plan
+### 4. Hakkında Sayfası
 
-### Automated Tests
-- Run `flutter test` for unit tests on data models and sync logic.
-- Run `flutter analyze` to ensure code quality.
+#### [NEW] [about_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/about_screen.dart)
 
-### Manual Verification
-- Verify QR scanning sensitivity and dwell time on physical devices or emulator (mocking camera if needed).
-- Test CSV import functionality.
-- Verify UI responsiveness across different screen sizes.
+İçerik:
+- Uygulama adı + ikon
+- Kullanım bilgisi (QR tarama, manuel arama)
+- Telif: "İlyas YEŞİL tarafından geliştirildi"
+- Sürüm numarası (v1.1.0)
+- Lisans ve iletişim bilgisi
+
+Settings'teki "Uygulama Bilgisi" kartına "Hakkında" butonu eklenecek.
+
+---
+
+### 5. Çift Dil Desteği (TR/EN) — Altyapı
+
+#### [NEW] [app_localizations.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/l10n/app_localizations.dart)
+
+- Tüm string'leri merkezi bir sınıfta toplama
+- `TR` ve `EN` map'leri
+
+#### [MODIFY] [settings_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/settings_screen.dart)
+
+- Dil seçim butonu (TR/EN toggle veya dropdown)
+- `SharedPreferences` ile dil tercihi saklanacak
+- Dil değişince tüm ekranlar yenilenecek
+
+#### [MODIFY] [main.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/main.dart)
+
+- `Locale` ve `LocaleProvider` ekleme
+- `MaterialApp.locale` parametresi
+
+---
+
+### 6. Settings Ekranı Layout
+
+#### [MODIFY] [settings_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/settings_screen.dart)
+
+- Kart padding ve spacing azaltma
+- Font boyutlarını sıkıştırma
+- "Hakkında" bağlantısı ekleme
+- Dil seçim butonu ekleme
+
+---
+
+## İş Sırası
+
+1. QR center-matching + dwell time 1.0s
+2. Özellik formatı (büyük harf, 2 haneli, Türkçe adlar)
+3. "Hakkında" sayfası
+4. i18n altyapısı (TR/EN) + dil seçici
+5. Metin güncellemeleri
+6. Settings layout düzeltmesi
+7. AI Prompt güncelleme
+8. Build + Push

@@ -15,7 +15,7 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    detectionSpeed: DetectionSpeed.unrestricted, // Her frame'de tara (center-matching için şart)
     facing: CameraFacing.back,
     torchEnabled: false,
   );
@@ -27,9 +27,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   double _dwellProgress = 0.0;
   Timer? _progressTimer;
   bool _torchOn = false;
+  DateTime? _dwellStartTime;
 
-  static const Duration dwellDuration = Duration(milliseconds: 1000);
-  static const Duration gracePeriod = Duration(milliseconds: 150);
+  static const int dwellMs = 1000; // 1.0 saniye
+  static const Duration gracePeriod = Duration(milliseconds: 400); // El titremesi toleransı
 
   @override
   void dispose() {
@@ -49,8 +50,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // CENTER-MATCHING: Birden fazla QR görünüyorsa, tarama alanının
-    // merkezine en yakın olanı seç (Kotlin referansından)
+    // CENTER-MATCHING: Merkeze en yakın QR kodu seç
     final validBarcodes = barcodes.where(
       (b) => b.rawValue != null && b.rawValue!.isNotEmpty && b.corners != null && b.corners!.length >= 4,
     ).toList();
@@ -60,18 +60,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // Ekran merkezini hesapla (tarama alanı ekranın ortasında)
+    // Ekran merkezi (tarama alanı)
     final screenSize = MediaQuery.of(context).size;
     final centerX = screenSize.width / 2;
-    final centerY = screenSize.height / 2 - 40; // overlay offset
+    final centerY = screenSize.height / 2 - 40;
 
-    // En yakın QR kodunu bul (Öklid mesafesi)
+    // En yakın QR'ı bul
     Barcode? closest;
     double minDist = double.infinity;
 
     for (final barcode in validBarcodes) {
       final corners = barcode.corners!;
-      // QR kodun merkez noktası: 4 köşenin ortalaması
       double bx = 0, by = 0;
       for (final corner in corners) {
         bx += corner.dx;
@@ -80,10 +79,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       bx /= corners.length;
       by /= corners.length;
 
-      final dx = bx - centerX;
-      final dy = by - centerY;
-      final dist = dx * dx + dy * dy;
-
+      final dist = (bx - centerX) * (bx - centerX) + (by - centerY) * (by - centerY);
       if (dist < minDist) {
         minDist = dist;
         closest = barcode;
@@ -93,13 +89,27 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final code = closest?.rawValue;
     if (code == null || code.isEmpty) return;
 
-    // Cancel grace period
+    // Grace period iptal — kod var
     _graceTimer?.cancel();
 
-    if (code == _lastScannedCode) return; // Same code, dwell running
+    if (code == _lastScannedCode) {
+      // Aynı kod — dwell devam ediyor, progress güncelle
+      if (_dwellStartTime != null) {
+        final elapsed = DateTime.now().difference(_dwellStartTime!).inMilliseconds;
+        final progress = (elapsed / dwellMs).clamp(0.0, 1.0);
+        if (mounted) setState(() => _dwellProgress = progress);
+        if (elapsed >= dwellMs) {
+          _dwellTimer?.cancel();
+          _progressTimer?.cancel();
+          _processCode(code);
+        }
+      }
+      return;
+    }
 
-    // New code — start dwell
+    // Yeni kod — dwell sıfırla
     _lastScannedCode = code;
+    _dwellStartTime = DateTime.now();
     _startDwellTimer(code);
   }
 
@@ -111,22 +121,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       _dwellProgress = 0.0;
     });
 
-    // Start progress animation
-    const progressInterval = Duration(milliseconds: 16); // ~60fps
-    _progressTimer = Timer.periodic(progressInterval, (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
+    // Fallback timer — unrestricted mode handles progress in _onDetect
+    // but this timer ensures processCode fires even if detection stops
+    _dwellTimer = Timer(Duration(milliseconds: dwellMs + 100), () {
+      if (_lastScannedCode == code && !_isProcessing) {
+        _processCode(code);
       }
-      setState(() {
-        _dwellProgress += progressInterval.inMilliseconds / dwellDuration.inMilliseconds;
-        if (_dwellProgress > 1.0) _dwellProgress = 1.0;
-      });
-    });
-
-    _dwellTimer = Timer(dwellDuration, () {
-      _progressTimer?.cancel();
-      _processCode(code);
     });
   }
 

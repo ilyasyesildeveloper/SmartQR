@@ -9,7 +9,7 @@ class MyDataService {
   static const String _messagingSenderId = '198931834905';
   static const String _storageBucket = 'mydata-81.firebasestorage.app';
 
-  static const String _collectionName = 'mydata';
+  static const String _collectionName = 'MyData';
   static const String _documentId = 'mydata-81';
 
   FirebaseFirestore? _firestore;

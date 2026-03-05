@@ -429,26 +429,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDetailsOverlay(Product product) {
+    // CSV sıralamasına göre sabit alan listesi
+    final orderedKeys = ['#', 'type', 'series', 'pattern', 'color', 'feature4', 'feature5', 'size1', 'size2', 'size3', 'number', 'stock'];
+    
+    // Tüm verileri tek Map'te topla
+    final allData = <String, String>{
+      'type': product.type,
+      'series': product.series,
+      ...product.properties.map((k, v) => MapEntry(k, v.toString())),
+    };
+    
+    // Sıralı ve boş olmayanları filtrele
     final allProperties = <String, String>{};
-    
-    // Add type and series first with translated names
-    if (product.type.isNotEmpty) {
-      allProperties[AppLocalizations.propertyName('type')] = product.type;
-    }
-    if (product.series.isNotEmpty) {
-      allProperties[AppLocalizations.propertyName('series')] = product.series;
-    }
-    
-    // Add dynamic properties in CSV order with translated names and 2-digit formatting
-    for (final entry in product.properties.entries) {
-      if (entry.value.toString().trim().isEmpty) continue;
-      final displayName = AppLocalizations.propertyName(entry.key);
-      final displayValue = product.formatProperty(entry.key, entry.value);
+    for (final key in orderedKeys) {
+      final value = allData[key] ?? '';
+      if (value.trim().isEmpty) continue;
+      final displayName = AppLocalizations.propertyName(key);
+      final displayValue = product.formatProperty(key, value);
       allProperties[displayName] = displayValue;
     }
-
-    // Remove empty values
-    allProperties.removeWhere((_, v) => v.isEmpty);
 
     return Positioned(
       bottom: 0,

@@ -1,27 +1,24 @@
-# Task: SmartQR Flutter App Development
+# Smart QR Pro — Task Tracker
 
-- [x] Project Cleanup and Preparation
-    - [x] List project directory contents
-    - [x] Delete existing files excluding `hazirlik` folder
-    - [x] Read `Smart QR_AI_Prompt.txt` and other resources in `hazirlik`
-    - [x] Backup project to GitHub
-- [x] UI/UX Design Generation
-    - [x] Generate design mockups for main screens
-    - [x] Get user feedback on designs
-- [/] Flutter Project Setup
-    - [x] Initialize new Flutter project
-    - [x] Install all dependencies (65 packages)
-    - [x] Create directory structure
-    - [ ] Firebase configuration (`flutterfire configure`) — **needs user action**
-- [x] Development
-    - [x] [app_theme.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/theme/app_theme.dart) - Burgundy light/dark theme with Google Fonts
-    - [x] [product_model.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/models/product_model.dart) - Flexible product model with CSV/Firestore parsing
-    - [x] [firebase_service.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/services/firebase_service.dart) - Auth + Firestore CRUD + CSV batch upload
-    - [x] [product_provider.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/providers/product_provider.dart) - State management
-    - [x] [home_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/home_screen.dart) - Image-first UI, search, details overlay
-    - [x] [qr_scanner_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/qr_scanner_screen.dart) - 1.2s dwell time, flashlight, custom frame
-    - [x] [settings_screen.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/screens/settings_screen.dart) - Admin login, CSV upload, data refresh
-    - [x] [main.dart](file:///c:/yesileee/SmartQR/app_flutter/lib/main.dart) - Entry point with Firebase init and Provider
-- [x] Verification
-    - [x] Run `flutter analyze` — 0 errors, 0 warnings, 10 info hints
-    - [ ] Firebase yapılandırması sonrası emülatörde test
+## Completed (v1.0.x)
+- [x] Flutter proje kurulumu + Firebase entegrasyonu
+- [x] QR Scanner (dwell time + grace period + circular progress)
+- [x] Ürün görseli + detay paneli
+- [x] Admin giriş + CSV yükleme
+- [x] App ikonu + "Smart QR Pro" adı
+- [x] CSV BOM fix (bulletproof parser)
+- [x] Offline-first yerel depolama (30 gün auto-sync)
+- [x] Autocomplete arama (Overlay dropdown, büyük harf)
+
+## Completed (v1.1.0)
+- [x] QR center-matching (merkeze en yakın kod seçimi)
+- [x] Dwell time 1.0s
+- [x] Özellik formatı: Türkçe büyük harf alan adları + 2 haneli padding
+- [x] "Hakkında" sayfası (MyData Firebase'den dinamik)
+- [x] TR/EN çift dil altyapısı + dil seçici
+- [x] Settings layout düzeltmesi (kompakt)
+- [x] Metin güncelleme: "QR Kod Ürün Yönetim Sistemi"
+- [x] Build + GitHub push
+
+## Remaining
+- [ ] AI Prompt güncelleme (v1.1.0 yeni özellikler)
