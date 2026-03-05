@@ -44,12 +44,22 @@ class FirebaseService {
 
   /// Upload products to Firestore from CSV string
   Future<int> uploadCsvToFirestore(String csvContent) async {
-    // Strip UTF-8 BOM if present
-    if (csvContent.startsWith('\uFEFF')) {
-      csvContent = csvContent.substring(1);
-    }
-    // Normalize line endings
-    csvContent = csvContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    // Strip UTF-8 BOM (EF BB BF) — multiple approaches for safety
+    csvContent = csvContent.replaceAll('\uFEFF', '');
+    csvContent = csvContent.replaceAll('\uFFFE', '');
+    
+    // Remove any non-printable characters from the first line (header)
+    final lines = csvContent.split(RegExp(r'\r?\n'));
+    if (lines.isEmpty) throw Exception('CSV dosyası boş.');
+    
+    // Clean the header line character by character
+    final cleanHeader = String.fromCharCodes(
+      lines[0].codeUnits.where((c) => c >= 32 && c != 65279 && c != 65534),
+    );
+    lines[0] = cleanHeader;
+    
+    // Rejoin and parse
+    csvContent = lines.join('\n');
 
     // Parse CSV with ; as delimiter
     final rows = const CsvToListConverter(
@@ -58,31 +68,41 @@ class FirebaseService {
       eol: '\n',
     ).convert(csvContent);
 
-    if (rows.isEmpty) {
-      throw Exception('CSV dosyası boş.');
-    }
+    if (rows.isEmpty) throw Exception('CSV dosyası boş.');
 
-    // Clean headers: trim whitespace and remove invisible characters
-    final headers = rows.first
-        .map((e) => e.toString().trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F\uFEFF]'), ''))
-        .toList();
+    // Clean all headers
+    final headers = rows.first.map((e) => e.toString().trim()).toList();
     
-    // Validate headers
-    if (!headers.contains('id')) {
-      throw Exception('CSV başlıklarında "id" sütunu bulunamadı. Başlıklar: ${headers.join(", ")}');
+    // Find id column (case-insensitive)
+    final idIndex = headers.indexWhere(
+      (h) => h.toLowerCase() == 'id',
+    );
+    
+    if (idIndex == -1) {
+      // Fallback: try manual split
+      final manualHeaders = cleanHeader.split(';').map((e) => e.trim()).toList();
+      final manualIdIndex = manualHeaders.indexWhere((h) => h.toLowerCase() == 'id');
+      
+      if (manualIdIndex == -1) {
+        throw Exception(
+          'CSV başlıklarında "id" sütunu bulunamadı.\n'
+          'Başlıklar (${headers.length} adet): ${headers.join(" | ")}\n'
+          'İlk karakter kodu: ${cleanHeader.isNotEmpty ? cleanHeader.codeUnitAt(0) : "boş"}'
+        );
+      }
+      
+      // Use manual parsing
+      return _uploadWithManualParsing(lines, manualHeaders);
     }
 
     int uploadedCount = 0;
 
     // Process in batches of 500
     final dataRows = rows.skip(1).where((row) {
-      // Skip empty rows
       return row.any((cell) => cell.toString().trim().isNotEmpty);
     }).toList();
 
-    if (dataRows.isEmpty) {
-      throw Exception('CSV dosyasında veri satırı bulunamadı.');
-    }
+    if (dataRows.isEmpty) throw Exception('CSV dosyasında veri satırı bulunamadı.');
 
     for (var i = 0; i < dataRows.length; i += 500) {
       final batch = _firestore.batch();
@@ -90,6 +110,34 @@ class FirebaseService {
 
       for (var j = i; j < end; j++) {
         final values = dataRows[j].map((e) => e.toString()).toList();
+        final product = Product.fromCsvRow(headers, values);
+
+        if (product.id.isNotEmpty) {
+          final docRef = _firestore.collection(collectionName).doc(product.id);
+          batch.set(docRef, product.toFirestore());
+          uploadedCount++;
+        }
+      }
+
+      await batch.commit();
+    }
+
+    return uploadedCount;
+  }
+
+  /// Fallback: manual CSV parsing with split
+  Future<int> _uploadWithManualParsing(List<String> lines, List<String> headers) async {
+    int uploadedCount = 0;
+    
+    final dataLines = lines.skip(1).where((l) => l.trim().isNotEmpty).toList();
+    if (dataLines.isEmpty) throw Exception('CSV dosyasında veri satırı bulunamadı.');
+
+    for (var i = 0; i < dataLines.length; i += 500) {
+      final batch = _firestore.batch();
+      final end = (i + 500 > dataLines.length) ? dataLines.length : i + 500;
+
+      for (var j = i; j < end; j++) {
+        final values = dataLines[j].split(';').map((e) => e.trim()).toList();
         final product = Product.fromCsvRow(headers, values);
 
         if (product.id.isNotEmpty) {
