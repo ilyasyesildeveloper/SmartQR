@@ -54,6 +54,14 @@ android {
             isShrinkResources = false
         }
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "SmartQRPro-v${variant.versionName}-${variant.buildType.name}.apk"
+        }
+    }
 }
 
 flutter {
