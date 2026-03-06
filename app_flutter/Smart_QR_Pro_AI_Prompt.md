@@ -139,10 +139,11 @@ app_flutter/lib/
 3. 30 günde bir otomatik senkronizasyon
 4. Settings'te manuel "Verileri Güncelle"
 
-### B. QR Tarayıcı — Center Matching
-- Birden fazla QR görünüyorsa: her QR'ın bounding box merkez noktası hesaplanır
-- Tarama alanının merkezine en yakın olan seçilir (Öklid mesafesi)
-- **Dwell time:** 1.0 saniye, **Grace period:** 150ms
+### B. QR Tarayıcı — Center Matching + scanWindow
+- `MobileScanner.scanWindow` parametresi ile native ML Kit seviyesinde tarama alanı sınırlaması
+- Kare alanın DIŞINDA kalan QR kodlar hiç algılanmaz
+- Alan içinde birden fazla QR varsa: merkeze en yakın seçilir (Öklid mesafesi)
+- **Dwell time:** 1.0 saniye, **Grace period:** 400ms (el titremesi toleransı)
 - Daire şeklinde ilerleme animasyonu (CustomPainter)
 
 ### C. Autocomplete Arama
@@ -152,9 +153,10 @@ app_flutter/lib/
 
 ### D. Hakkında Sayfası (MyData Firebase)
 - İkinci Firebase projesi (mydata-81) okunur
-- `mydata/mydata-81` dökümanındaki tüm alanlar dinamik gösterilir
+- `MyData/mydata-81` dökümanındaki tüm alanlar dinamik gösterilir
+- Alan sırası: name → company → web → email → phone → address → diğerleri
 - Boş alanlar gizlenir, yeni alan ekleyince otomatik görünür
-- Firebase Console'dan içerik değiştirilebilir
+- Firebase Console'dan içerik değiştirilebilir (uygulama güncellemesi gerekmez)
 
 ### E. Çift Dil Desteği (TR/EN)
 - `AppLocalizations` sınıfı ile merkezi çeviri
@@ -188,16 +190,29 @@ app_flutter/lib/
 
 ---
 
-## 7. GELİŞTİRME NOTLARI (AI İÇİN)
+## 7. BUILD VE DAĞITIM
+
+### APK Adlandırma
+- `SmartQRPro-v{version}-{buildType}.apk` (Gradle'da otomatik)
+- Örnek: `SmartQRPro-v1.1.0-release.apk`
+
+### Release Build
+- Keystore: `android/smartqr-release.jks` (RSA 2048, 10000 gün)
+- Signing config: `android/key.properties` (gitignore'da)
+- R8 minification: kapalı (uyumluluk için)
+
+---
+
+## 8. GELİŞTİRME NOTLARI (AI İÇİN)
 1. İKİ Firebase projesi kullanılır: SmartQR (ürünler) + MyData (hakkında)
-2. `mobile_scanner v7` API, `corners` property ile center-matching
+2. `mobile_scanner v7` — `scanWindow` ile native tarama alanı sınırlaması
 3. Provider + ChangeNotifier state yönetimi
 4. CSV `;` delimiter, BOM temizleme zorunlu
 5. Offline-first: `local_storage_service.dart` (JSON)
 6. Arama yerel filtreleme (Firebase çağrısı yapmaz)
 7. i18n: `app_localizations.dart` (TR/EN string + property name çeviri)
-8. Debug APK ~70MB+, release ~15-20MB
-9. iOS build için macOS gereklidir
+8. Görsel cache: `cached_network_image` — ilk indirmeden sonra yerel diskten
+9. iOS build için macOS gereklidir (GitHub Actions alternatif)
 
 ---
 Felsefe: **"Esnek Veri, Sabit Performans"**
